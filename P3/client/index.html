@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Dash.js IRAC</title>
+    <style>
+        video {
+            width: 640px;
+            height: 360px;
+        }
+    </style>
+
+	    <!-- Load c3.css -->
+	<link href="/c3/c3.css" rel="stylesheet">
+
+	<!-- Load d3.js and c3.js -->
+	<script src="https://d3js.org/d3.v5.min.js"></script>
+	<script src="/c3/c3.min.js"></script>
+    <script src="http://cdn.dashjs.org/v3.1.0/dash.all.min.js"></script>
+    <script>
+    	var isPlaying = false;
+    	var chart;
+    	var metricsArray = [
+		        ['bitrate'],
+		        ['buffer']
+		      ];
+        function init() {
+
+            const protData = {
+                "org.w3.clearkey": {
+					"serverURL": "http://192.168.1.52:5000/dash_api"
+                }
+            };
+            initChart();
+
+            var video,
+                player,
+                url = "./output/stream.mpd";
+
+            video = document.querySelector("video");
+            player = dashjs.MediaPlayer().create();
+            player.initialize(video, url, true);
+            player.setProtectionData(protData);
+			player.on(dashjs.MediaPlayer.events["PLAYBACK_ENDED"], function() {
+				clearInterval(eventPoller);
+			});
+			var eventPoller = setInterval(function() {
+			var streamInfo = player.getActiveStream().getStreamInfo();
+			var dashMetrics = player.getDashMetrics();
+			var dashAdapter = player.getDashAdapter();
+			if (dashMetrics && streamInfo) {
+				const periodIdx = streamInfo.index;
+				var repSwitch = dashMetrics.getCurrentRepresentationSwitch('video', true);
+				var bufferLevel = dashMetrics.getCurrentBufferLevel('video', true);
+				var bitrate = repSwitch ? Math.round(dashAdapter.
+				 getBandwidthForRepresentation(repSwitch.to,
+				 periodIdx) / 1000) : NaN;
+				document.getElementById('buffer').innerText = bufferLevel;
+				document.getElementById('bitrate').innerText = bitrate;
+				document.getElementById('representation').innerText = repSwitch.to;
+				if(isPlaying){
+					metricsArray[1].push(bufferLevel);
+					metricsArray[0].push(bitrate);
+					chart.load({
+				        columns: metricsArray
+				    });
+				}
+			 }
+			 
+			}, 500);
+        }
+    </script>
+</head>
+<body>
+	<h1 style="text-align: center;"> Entrega 3 IRAC: DASH</h1>
+	<div style="display: flex; flex-direction: row; justify-content: space-around;">
+		<div style="display: block;  padding-left: 3 rem ">
+			<video
+			 autoplay controls preload="auto" onplay="isPlaying=true" onpause="isPlaying=false">
+			 	
+			 </video>
+		</div>
+		
+		 <div style="display:bloack;width: 50%; padding-top: 2rem ">
+		 	<p style="text-align: center">Video Bitrate: <span id="bitrate"></span> kbps</p>
+			<p style="text-align: center">Video Buffer: <span id="buffer"></span> seconds</p>
+			<p style="text-align: center">Video Representation: <span id="representation"></span></p>
+		 </div>
+	</div>
+	<div id="chart"></div>
+	<script>
+		document.addEventListener("DOMContentLoaded", function () {
+			init();
+		});
+
+		function initChart(){
+			chart = c3.generate({
+		    bindto: '#chart',
+		    data: {
+		      columns: metricsArray,
+		      types: {
+		            bitrate: 'area',
+		            buffer: 'area'
+		        },
+		      axes: {
+		            bitrate: 'y',
+		            buffer: 'y2'
+		        }
+		    },
+		    axis: {
+		        y: {
+            		label: 'Bitrate (kbps)'
+		        },
+		        y2: {
+		            show: true,
+		            label: 'Buffer (s)'
+		        }
+		    }
+			});
+		}
+		
+	</script>
+</body>
+</html>
